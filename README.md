@@ -262,6 +262,13 @@ Additional project information:
 - [NumPy](https://numpy.org/), [tifffile](https://github.com/cgohlke/tifffile), and
   [Pillow](https://python-pillow.org/) for image and array I/O
 
+## Acknowledgements
+
+This project was developed with assistance from
+[OpenAI Codex](https://developers.openai.com/learn/codex) for code generation,
+testing, documentation, and repository preparation. All AI-assisted changes were
+reviewed and approved by the repository owner.
+
 ## License
 
 Copyright © 2026. All rights reserved. See [LICENSE](LICENSE).
