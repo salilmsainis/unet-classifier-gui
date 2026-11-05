@@ -1,0 +1,144 @@
+U-NET TRAINING — standalone 2D segmentation trainer
+
+START
+Double-click Launch U-Net Training.command on macOS. This opens a two-tab
+Train classifier / Apply classifier window. It uses PyQt6 and PyTorch.
+No SAM or SAM3 is used.
+
+DATA
+1. Put original images in one folder and completed masks in another.
+2. Browse to each folder and choose an output folder.
+3. Click Load data / detect all classes. The final number in each filename
+   identifies its pair: sem-image-sliceimage-016.tif matches Annotated_016.tif.
+   Missing pairs, duplicate IDs, mismatched sizes and inconsistent palettes
+   must be corrected before training. Only single-frame 2D images are accepted.
+4. Inspect the automatically discovered IDs, colours and pixel counts.
+   Double-click each Class name cell to name it. Alternatively, load a class
+   JSON profile exported by the annotation editor.
+
+CLASS LABELS
+Scalar and palette mask IDs are preserved. Different numeric IDs remain separate
+training classes even if you assign them the same display name. Background is
+included in loss and metrics; ID 0 is not assumed to be background. Empty regions
+in a mask are labels, not ignored pixels: masks must label the whole image.
+The editor supports up to 65536 distinct labels. This trainer currently
+supports 2–256 classes. All input colours must be discrete, not blended
+annotation overlays. No colours are silently merged or approximated.
+
+TRAIN
+5. Explicitly choose CPU, NVIDIA CUDA or Apple Silicon MPS. All processors are
+   listed, but unavailable accelerators are disabled; the program never silently
+   switches processors.
+6. Use U-Net with the default 16 base channels and depth 3 initially. This
+   release trains from scratch; no ImageNet weights or ResNet encoder are
+   downloaded. Larger models need more memory.
+7. Set epochs, batch size, patch size, patches per epoch, learning rate,
+   weight decay, validation percentage, seed, loss and early-stop patience.
+   A patch is sampled at native resolution; there is no hidden downscaling.
+   Random horizontal/vertical flips augment the training patches. Smaller
+   batch and patch sizes reduce device memory requirements.
+8. Click Train U-Net. Training executes in a separate process; the dashboard stays
+   responsive. Metrics update after each completed validation epoch.
+   Cancel current job stops processing and retains earlier best checkpoints.
+   Wait until cancellation finishes before closing the window.
+
+VALIDATION AND CHARTS
+At least TWO complete annotated images are mandatory. A seeded split holds
+out whole images before patch sampling; patches from a validation image never
+enter training. All classes must occur in the training subset. Change the
+seed/split or supply more images if a class is missing.
+For tomography, adjacent slices can be very similar: hold out another specimen
+for a credible final generalization test. The GUI image split does not infer
+specimen groups. The split is recorded in run.json for auditing.
+Training loss is measured over sampled training patches. Validation loss is
+measured over all native pixels in the held-out images, with overlapping-tile
+probability averaging. These two loss curves therefore differ in sampling.
+IoU and Dice aggregate a confusion matrix over held-out pixels. Classes absent
+from both truth and prediction have undefined scores and are omitted from
+macro averages; they appear as gaps in their per-class curves. Background is
+included. Curves are measured values, not simulations. Remaining time estimates
+use the last epoch duration and can vary.
+The three previews show the first validation image, its ground truth, and the
+CURRENT epoch prediction. The saved classifier is the BEST mIoU epoch, which
+may differ from the latest preview. Early stopping monitors best validation
+mIoU. A seed controls the split and sampling but GPU execution is not promised
+bit-for-bit reproducible.
+
+SAVING AND APPLYING A CLASSIFIER
+Every training job creates a new timestamped run directory containing:
+  best.unet.pt   Best validation-mIoU model, class names/IDs/colours,
+                 architecture, normalization rule and patch size.
+  run.json       Settings, source paths and image-level split indices.
+  history.json   Actual epoch metrics.
+  preview.npz    Most recent validation preview arrays.
+The classifier field fills automatically. Click Use in Apply classifier tab,
+or open the Apply classifier tab directly and browse to any compatible
+best.unet.pt. Choose a processor and click Load classifier to inspect its IDs,
+colours and class names. Choose either one 2D image or an input image directory,
+choose an output folder, and click Apply classifier. Directory mode processes the
+supported images directly inside the selected folder (not nested folders).
+Inference runs in the same isolated worker used by training.
+
+After inference, the Apply classifier tab shows the original image and the
+colour-classified image side by side. Each viewer has Fit, 1:1, zoom-out and
+zoom-in controls, and can be panned when zoomed. The displayed class colours
+come from the checkpoint; the result is not a blended overlay. Save classified
+image copies the numeric label TIFF to a user-selected name. The timestamped
+prediction directory remains the complete result and contains:
+  prediction.tif       Numeric uint16 class IDs at the source dimensions.
+  probabilities.npz    Float32 probabilities [classes, height, width] and IDs.
+  classes.json         Names, colours and original numeric IDs.
+  source.json          Source, checkpoint and processor provenance.
+For directory input, a timestamped batch folder contains one numbered result
+folder per image plus batch.json, which maps every source to its result folder.
+Apply performs inference without retraining. Training currently starts a new
+model; resuming optimizer state or fine-tuning a loaded classifier is not
+implemented. Preserve the image/mask folders to train again with added data.
+Prediction exports are separate from the original data and are never input
+annotations automatically. Inspect them before scientific use. The original
+viewer uses display-only contrast scaling; source samples are not changed.
+U-Net prediction editing, SAM prompts, pretrained encoders, threshold editing, 3D volumes
+and OS application bundles are outside this standalone trainer's current scope.
+
+IMAGE VALUES AND LIMITS
+Original files remain unchanged. Network inputs use per-image, per-channel
+1st/99th percentile scaling to [0,1], saved as the normalization rule and applied
+identically at inference. This changes network inputs, not source samples.
+Grayscale or RGB originals must have consistent channel count. Nonfinite input
+pixels and alpha-channel originals are rejected. Masks retain exact integer IDs,
+including holes. Model output channels are explicitly mapped back to those IDs.
+Tiled inference averages probabilities over half-patch-stride overlapping tiles;
+tile predictions can differ from whole-image predictions due to padding and
+context. Images smaller than a patch are edge-padded then cropped back exactly.
+In-memory training data and inference accumulators are limited to 512 MiB each;
+GPU activations can require substantially more. Decrease patch/batch/model size
+if device memory is exhausted. Dataset discovery does not train a model.
+Checkpoints load with PyTorch weights_only=True, not unrestricted pickle.
+
+SETUP
+The macOS and Windows launchers use this folder's .venv. On first run they offer
+to create it and install the project after confirmation. To create the environment
+manually, use Python 3.12 in this folder:
+  macOS: python3.12 -m venv .venv
+         .venv/bin/python -m pip install -e .
+  Windows: py -3.12 -m venv .venv
+           .venv\Scripts\python.exe -m pip install -e .
+Then double-click the matching .command or .bat launcher. A macOS environment
+cannot be reused on Windows. Windows and CUDA require validation on those
+platforms. For CUDA, install the build selected at
+https://pytorch.org/get-started/locally/ into the Windows or Linux .venv, then
+restart the GUI. The launchers do not change machine-wide settings.
+
+FOLDER INDEPENDENCE
+This folder contains all trainer source code and image I/O; the annotation
+editor is not required. If you move this folder elsewhere, let the launcher create
+a new .venv or use the setup instructions above. Virtual environments themselves
+should not be relocated.
+
+TROUBLESHOOTING COMPRESSED TIFFS
+LZW-compressed TIFFs require imagecodecs, included in pyproject.toml.
+If an older environment reports that imagecodecs is missing, install the updated
+project into that environment, then reopen the app. Input images do not
+need conversion. Failed jobs now show the actual reason after the exit code.
+Each job saves its configuration and output in the local Diagnostics folder;
+logs can contain local file paths. Nothing is uploaded automatically.

@@ -1,0 +1,10 @@
+*.bat text eol=crlf
+*.command text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.gif binary
+*.jpg binary
+*.png binary
+*.mp4 binary
